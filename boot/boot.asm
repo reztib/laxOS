@@ -1,54 +1,95 @@
 ; Bootloader laxOS
-org 0x7c00  ; MBR
-bits 16 ;16 bit real mode
+org 0x7c00
+bits 16
 
 Start:
-    mov ax, 0x0000
+    ; -------------------------
+    ; Segmentregister setzen
+    ; -------------------------
+    xor ax, ax
     mov ds, ax
 
-    ; set video mode for clearing version information from the starting screen
-    ; 80x25 resolution and color
-    mov ah, 0x0
-    mov al, 0x03
+    ; -------------------------
+    ; Video Mode 80x25 text
+    ; -------------------------
+    mov ax, 0x0003
     int 0x10
 
-    mov ah, 0x2
-    mov bh, 0
-    mov dh, 0
-    mov dl, 29
-    int 0x10
-
+    ; -------------------------
+    ; Cursor Position berechnen
+    ; -------------------------
     mov si, msg
-    call printStr
+    call get_length      ; CX = Länge
+
+    mov ax, 80
+    sub ax, cx
+    shr ax, 1            ; (80 - len) / 2
+
+    mov dh, 0            ; Zeile 0
+    mov dl, al           ; Spalte
+    mov bh, 0
+
+    mov ah, 0x02
+    int 0x10
+
+    ; -------------------------
+    ; String ausgeben
+    ; -------------------------
+    mov si, msg
+    call print_str
 
     jmp hang
 
-printStr:
-    psloop:
-        ; load letter into lower register
+; ==================================================
+; get_length: CX = Länge des Strings
+; Input:  SI = String
+; Output: CX = length
+; ==================================================
+get_length:
+    xor cx, cx
+
+    .len_loop:
         mov al, [si]
+        cmp al, 0
+        je .done
 
-        ; look if character is zero and return if that's the case
-        cmp byte [si], 0
-        je end
+        inc cx
+        inc si
+        jmp .len_loop
 
-        ; display character, increment the character "position", start over
+    .done:
+        ret
+
+; ==================================================
+; print_str: gibt String aus (BIOS teletype)
+; Input: SI = String
+; ==================================================
+print_str:
+    .print_loop:
+        mov al, [si]
+        cmp al, 0
+        je .done
+
         mov ah, 0x0E
         int 0x10
 
         inc si
+        jmp .print_loop
 
-        jmp psloop
-    
-    end:
+    .done:
         ret
 
-msg db "Willkommen zu laxOS!", 13, 10, 0 ; carriage return, line feed, null terminator
+; -------------------------
+; Daten
+; -------------------------
+msg db "Willkommen zu laxOS v0.0.1!", 0
 
+; -------------------------
+; Hang
+; -------------------------
 hang:
     jmp hang
-    
 
-; nothing after this gets run in the binary!
-times 510 - ($-$$) db 0
+; Boot Signature
+times 510 - ($ - $$) db 0
 dw 0xAA55
