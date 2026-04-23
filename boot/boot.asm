@@ -12,30 +12,38 @@ Start:
     mov al, 0x03
     int 0x10
 
+    mov ah, 0x2
+    mov bh, 0
+    mov dh, 0
+    mov dl, 29
+    int 0x10
+
     mov si, msg
     call printStr
+
     jmp hang
 
 printStr:
-    mov al, [si] ; load letter into lower register
-    
     psloop:
+        ; load letter into lower register
+        mov al, [si]
+
         ; look if character is zero and return if that's the case
         cmp byte [si], 0
         je end
 
-        ; display character, increment the character "position"; load the next letter from al into [si], start over
+        ; display character, increment the character "position", start over
         mov ah, 0x0E
         int 0x10
+
         inc si
-        mov al, [si]
+
         jmp psloop
     
     end:
         ret
 
-msg db "LACHS", 13, 10, 0 ; carriage return, line feed, null terminator
-
+msg db "Willkommen zu laxOS!", 13, 10, 0 ; carriage return, line feed, null terminator
 
 hang:
     jmp hang
