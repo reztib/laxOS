@@ -1,22 +1,22 @@
 ; Bootloader laxOS
 org 0x7c00
-bits 16
+bits 16     ; 16 bit real mode
 
 Start:
     ; -------------------------
-    ; Segmentregister setzen
+    ; set segmentation registers
     ; -------------------------
     xor ax, ax
     mov ds, ax
 
     ; -------------------------
-    ; Video Mode 80x25 text
+    ; video mode 80x25 text
     ; -------------------------
     mov ax, 0x0003
     int 0x10
 
     ; -------------------------
-    ; Cursor Position berechnen
+    ; calculate cursor position in relation to msg length
     ; -------------------------
     mov si, msg
     call get_length      ; CX = Länge
@@ -25,23 +25,23 @@ Start:
     sub ax, cx
     shr ax, 1            ; (80 - len) / 2
 
-    mov dh, 0            ; Zeile 0
-    mov dl, al           ; Spalte
+    mov dh, 0            ; row 0
+    mov dl, al           ; column
     mov bh, 0
 
     mov ah, 0x02
     int 0x10
 
     ; -------------------------
-    ; String ausgeben
+    ; print string
     ; -------------------------
     mov si, msg
-    call print_str
+    call print_startupMessage
 
     jmp hang
 
 ; ==================================================
-; get_length: CX = Länge des Strings
+; get_length: CX = string length
 ; Input:  SI = String
 ; Output: CX = length
 ; ==================================================
@@ -61,10 +61,10 @@ get_length:
         ret
 
 ; ==================================================
-; print_str: gibt String aus (BIOS teletype)
+; print_startupMessage: prints startup message (duh) (BIOS teletype)
 ; Input: SI = String
 ; ==================================================
-print_str:
+print_startupMessage:
     .print_loop:
         mov al, [si]
         cmp al, 0
@@ -80,7 +80,7 @@ print_str:
         ret
 
 ; -------------------------
-; Daten
+; start up message
 ; -------------------------
 msg db "Willkommen zu laxOS v0.0.1!", 0
 
@@ -90,6 +90,6 @@ msg db "Willkommen zu laxOS v0.0.1!", 0
 hang:
     jmp hang
 
-; Boot Signature
+; boot signature
 times 510 - ($ - $$) db 0
 dw 0xAA55
