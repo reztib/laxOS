@@ -18,7 +18,7 @@ Start:
     ; -------------------------
     ; calculate cursor position in relation to msg length
     ; -------------------------
-    mov si, msg
+    mov si, greetingMsg
     call get_length      ; CX = Länge
 
     mov ax, 80
@@ -35,8 +35,25 @@ Start:
     ; -------------------------
     ; print string
     ; -------------------------
-    mov si, msg
-    call print_startupMessage
+    mov si, greetingMsg
+    call print_startupMessages
+
+    mov si, questionMsg
+    call get_length
+
+    mov ax, 80
+    sub ax, cx
+    shr ax, 1
+
+    mov dh, 2
+    mov dl, al
+    mov bh, 0
+
+    mov ah, 0x02
+    int 0x10
+
+    mov si, questionMsg
+    call print_startupMessages
 
     jmp hang
 
@@ -61,10 +78,10 @@ get_length:
         ret
 
 ; ==================================================
-; print_startupMessage: prints startup message (duh) (BIOS teletype)
+; print_startupMessages: prints startup messages (duh) (BIOS teletype)
 ; Input: SI = String
 ; ==================================================
-print_startupMessage:
+print_startupMessages:
     .print_loop:
         mov al, [si]
         cmp al, 0
@@ -82,7 +99,9 @@ print_startupMessage:
 ; -------------------------
 ; start up message
 ; -------------------------
-msg db "Willkommen zu laxOS v0.0.1!", 0
+greetingMsg db "Willkommen zu laxOS v0.0.1!", 13, 10, 0
+
+questionMsg db "Was willst du tun?", 13, 10, 0
 
 ; -------------------------
 ; Hang
