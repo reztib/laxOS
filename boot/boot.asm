@@ -43,12 +43,10 @@ Start:
 
     mov ax, 80
     sub ax, cx
-    shr ax, 1
+    shr ax, 1 ; /2
 
-    mov dh, 2
+    mov dh, 6
     mov dl, al
-    mov bh, 0
-
     mov ah, 0x02
     int 0x10
 
@@ -56,6 +54,7 @@ Start:
     call print_startupMessages
 
     ; set cursor position
+    mov bh, 0
     mov dh, 8
     mov dl, 8
     mov ah, 0x02
@@ -64,15 +63,17 @@ Start:
     mov si, menuSelection_1
     call print_menu
 
-
-    mov dh, 10
+    mov bh, 0
+    mov dh, 9
     mov dl, 8
     mov ah, 0x02
     int 0x10
-    
+
     mov si, menuSelection_2
     call print_menu
 
+    call print_selection
+    
     jmp hang
 
 ; ==================================================
@@ -131,6 +132,27 @@ print_menu:
     .done:
         ret
 
+
+print_selection:
+    mov ax, 0
+    mov es, ax
+
+    mov bp, symbol
+    mov cx, 1
+    mov dh, 8
+    mov dl, 7
+    mov bh, 0
+    mov bl, 0x0F
+    mov ax, 0x1301
+    int 0x10
+
+    symbol db ">"
+
+    jmp .done
+
+    .done:
+        ret
+
 ; -------------------------
 ; start up messages
 ; -------------------------
@@ -141,8 +163,8 @@ questionMsg db "Was willst du tun?", 13, 10, 0
 ; -------------------------
 ; menu
 ; -------------------------
-menuSelection_1 db "laxOS starten", 13, 10, 0
-menuSelection_2 db "Shutdown", 13, 10, 0
+menuSelection_1 db "laxOS starten", 0
+menuSelection_2 db "Shutdown", 0
 
         
 
