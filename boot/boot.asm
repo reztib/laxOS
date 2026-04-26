@@ -55,6 +55,24 @@ Start:
     mov si, questionMsg
     call print_startupMessages
 
+    ; set cursor position
+    mov dh, 8
+    mov dl, 8
+    mov ah, 0x02
+    int 0x10
+
+    mov si, menuSelection_1
+    call print_menu
+
+
+    mov dh, 10
+    mov dl, 8
+    mov ah, 0x02
+    int 0x10
+    
+    mov si, menuSelection_2
+    call print_menu
+
     jmp hang
 
 ; ==================================================
@@ -84,6 +102,23 @@ get_length:
 print_startupMessages:
     .print_loop:
         mov al, [si]
+
+        cmp al, 0
+        je .done
+
+        mov ah, 0x0E
+        int 0x10
+
+        inc si
+        jmp .print_loop
+
+    .done:
+        ret
+
+
+print_menu:
+    .print_loop:
+        mov al, [si]
         cmp al, 0
         je .done
 
@@ -97,11 +132,19 @@ print_startupMessages:
         ret
 
 ; -------------------------
-; start up message
+; start up messages
 ; -------------------------
 greetingMsg db "Willkommen zu laxOS v0.0.1!", 13, 10, 0
 
 questionMsg db "Was willst du tun?", 13, 10, 0
+
+; -------------------------
+; menu
+; -------------------------
+menuSelection_1 db "laxOS starten", 13, 10, 0
+menuSelection_2 db "Shutdown", 13, 10, 0
+
+        
 
 ; -------------------------
 ; Hang
