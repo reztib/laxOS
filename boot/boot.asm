@@ -1,13 +1,15 @@
-; Bootloader laxOS
 org 0x7c00
 bits 16     ; 16 bit real mode
 
 Start:
     ; -------------------------
-    ; set segmentation registers
+    ; Setze Segmentregister
     ; -------------------------
     xor ax, ax
     mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov sp, 0x7C00
 
     ; -------------------------
     ; video mode 80x25 text
@@ -16,7 +18,7 @@ Start:
     int 0x10
 
     ; -------------------------
-    ; calculate cursor position in relation to msg length
+    ; Berechne Cursor-Position für die Begrüßungsnachricht
     ; -------------------------
     mov si, greetingMsg
     call get_length      ; CX = Länge
@@ -33,7 +35,7 @@ Start:
     int 0x10
 
     ; -------------------------
-    ; print string
+    ; String ausgeben
     ; -------------------------
     mov si, greetingMsg
     call print_startupMessages
@@ -72,108 +74,159 @@ Start:
     mov si, menuSelection_2
     call print_menu
 
-    call print_selection
-    
+; ==================================================
+; INTERAKTIVE MENÜ-SCHLEIFE
+; ==================================================
+menu_loop:
+    call draw_pointer       ; Zeichne den Auswahlpfeil
+
+    ; Auf Tastendruck warten (BIOS-Interrupt 0x16, AH=00h)
+    mov ah, 0x00
+    int 0x16                ; AH = Scancode, AL = ASCII
+
+    ; Überprüfe die Scancodes der Tasten
+    cmp ah, 0x48            ; Pfeiltaste NACH OBEN
+    je move_up
+    cmp ah, 0x50            ; Pfeiltaste NACH UNTEN
+    je move_down
+    cmp ah, 0x1C            ; ENTER-Taste
+    je execute_selection
+
+    jmp menu_loop           ; Ignoriere andere Tasten
+
+move_up:
+    mov byte [current_selection], 0
+    call clear_pointer_space ; Löscht alten Pfeil
+    jmp menu_loop
+
+move_down:
+    mov byte [current_selection], 1
+    call clear_pointer_space ; Löscht alten Pfeil
+    jmp menu_loop
+
+execute_selection:
+    mov al, [current_selection]
+    cmp al, 0
+    je start_laxos          ; Option 0: laxOS starten
+    cmp al, 1
+    je shutdown_system      ; Option 1: Shutdown
+    jmp menu_loop
+
+; ==================================================
+; Hilfsfunktionen für das Menü
+; ==================================================
+draw_pointer:
+    mov dh, 8
+    add dh, [current_selection]
+    mov dl, 7               ; Spalte vor dem Text
+    mov bh, 0
+    mov ah, 0x02
+    int 0x10                ; Cursor setzen
+
+    mov al, '>'
+    mov ah, 0x0E
+    int 0x10
+    ret
+
+clear_pointer_space:
+    mov bh, 0
+    mov dl, 7
+
+    ; Zeile 8 löschen
+    mov dh, 8
+    mov ah, 0x02
+    int 0x10
+    mov al, ' '
+    mov ah, 0x0E
+    int 0x10
+
+    ; Zeile 9 löschen
+    mov dh, 9
+    mov ah, 0x02
+    int 0x10
+    mov al, ' '
+    mov ah, 0x0E
+    int 0x10
+    ret
+
+; ==================================================
+; Aktionen der Menüeinträge
+; ==================================================
+start_laxos:
+    jmp hang
+
+shutdown_system:
+    mov ax, 0x5301
+    xor bx, bx
+    int 0x15                ; APM Verbindung herstellen
+
+    mov ax, 0x530e
+    xor bx, bx
+    mov cx, 0x0102
+    int 0x15                ; APM Treiberversion aktivieren
+
+    mov ax, 0x5307
+    mov bx, 0x0001          ; Alle Geräte
+    mov cx, 0x0003          ; Zustand: Off
+    int 0x15                ; System ausschalten
     jmp hang
 
 ; ==================================================
-; get_length: CX = string length
-; Input:  SI = String
-; Output: CX = length
+; Vorhandene Hilfsfunktionen
 ; ==================================================
 get_length:
     xor cx, cx
-
     .len_loop:
         mov al, [si]
         cmp al, 0
         je .done
-
         inc cx
         inc si
         jmp .len_loop
-
     .done:
         ret
 
-; ==================================================
-; print_startupMessages: prints startup messages (duh) (BIOS teletype)
-; Input: SI = String
-; ==================================================
 print_startupMessages:
     .print_loop:
         mov al, [si]
-
         cmp al, 0
         je .done
-
         mov ah, 0x0E
         int 0x10
-
         inc si
         jmp .print_loop
-
     .done:
         ret
-
 
 print_menu:
     .print_loop:
         mov al, [si]
         cmp al, 0
         je .done
-
         mov ah, 0x0E
         int 0x10
-
         inc si
         jmp .print_loop
-
-    .done:
-        ret
-
-
-print_selection:
-    mov ax, 0
-    mov es, ax
-
-    mov bp, symbol
-    mov cx, 1
-    mov dh, 8
-    mov dl, 7
-    mov bh, 0
-    mov bl, 0x0F
-    mov ax, 0x1301
-    int 0x10
-
-    symbol db ">"
-
-    jmp .done
-
     .done:
         ret
 
 ; -------------------------
-; start up messages
+; Datenbereich (Variablen & Texte)
 ; -------------------------
+current_selection db 0
+
 greetingMsg db "Willkommen zu laxOS v0.0.1!", 13, 10, 0
-
 questionMsg db "Was willst du tun?", 13, 10, 0
 
-; -------------------------
-; menu
-; -------------------------
 menuSelection_1 db "laxOS starten", 0
 menuSelection_2 db "Shutdown", 0
 
-        
-
 ; -------------------------
-; Hang
+; Hang (Endlosschleife)
 ; -------------------------
 hang:
     jmp hang
 
-; boot signature
+; Boot-Signatur füllen
 times 510 - ($ - $$) db 0
 dw 0xAA55
