@@ -15,15 +15,14 @@ kernel_start:
 
 
     ; -------------------------------------------------------------------------
-    ; TODO: 2. Bildschirm-Reset und Begrüßung
+    ; 2. Bildschirm-Reset und Begrüßung
     ; -------------------------------------------------------------------------
     ; 2a) - Videospeicher bereinigen (Bildschirm leeren) via int 0x10
     call clear_screen
 
-    ; 2b) - Begrüßungsnachricht und Frage ausgeben
+    ; 2b) - Begrüßungsnachricht ausgeben
     mov si, kernel_msg
     call print_messageOnScreen
-    call sleep
 
     ; -------------------------------------------------------------------------
     ; KERNEL-STOPP (Verhindert das Hineinlaufen in die Hilfsfunktionen)
@@ -31,12 +30,15 @@ kernel_start:
     jmp kernel_hang
 
     ; -------------------------------------------------------------------------
-    ; TODO: 3. Kernfunktionen und Systemarchitektur
+    ; @TODO: 3. Kernfunktionen und Systemarchitektur
     ; -------------------------------------------------------------------------
-    ; - Implementierung der grundlegenden Befehlseingabe (CLI-Schnittstelle)
-    ; - Abfrage systemrelevanter Hardware-Informationen über BIOS-Interrupts
-    ; - Vorbereitung und Wechsel in den 32-Bit Protected Mode (GDT-Aufbau)
-    ; - Entwicklung eines hardwarenahen Tastaturtreibers
+    ; - 3a) Implementierung der grundlegenden Befehlseingabe (CLI-Schnittstelle)
+    
+
+    ; - 3b) Abfrage systemrelevanter Hardware-Informationen über BIOS-Interrupts
+    ; - 3c) Vorbereitung und Wechsel in den 32-Bit Protected Mode (GDT-Aufbau)
+    ; - 3d) Entwicklung eines hardwarenahen Tastaturtreibers
+
 
 
 ; ==============================================================================
