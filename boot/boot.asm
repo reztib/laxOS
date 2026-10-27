@@ -189,9 +189,14 @@ disk_error:
     mov si, diskErrorMsg
     call print_messageOnScreen
 
+    ; =================================================
+    ; Sleep für fünf Millionen Mikrosekunden (what the fuck?) bevor das System heruntergefahren wird
+    ; für andere Zeiten einfach gewünschten Wert in µs in https://www.rapidtables.com/convert/number/decimal-to-hex.html?x=5000000 eingeben,
+    ; erste Hälfte in CX, zweite Hälfte in DX speichern
+    ; =================================================
     mov ah, 0x86
-    mov cx, 0x004C
-    mov dx, 0x4B40
+    mov cx, 0x004C          
+    mov dx, 0x4B40          ; 0x004C4B40 = 5.000.000 Mikrosekunden = 5 Sekunden
     int 0x15                ; BIOS Sleep für 5 Sekunden (5000 ms)
 
     jmp shutdown_system
