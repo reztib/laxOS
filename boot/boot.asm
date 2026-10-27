@@ -38,7 +38,7 @@ Start:
     ; String ausgeben
     ; -------------------------
     mov si, greetingMsg
-    call print_startupMessages
+    call print_messageOnScreen
 
     mov si, questionMsg
     call get_length
@@ -53,7 +53,7 @@ Start:
     int 0x10
 
     mov si, questionMsg
-    call print_startupMessages
+    call print_messageOnScreen
 
     ; set cursor position
     mov bh, 0
@@ -153,7 +153,54 @@ clear_pointer_space:
 ; Aktionen der Menüeinträge
 ; ==================================================
 start_laxos:
-    jmp hang
+    ; =================================================
+    ; 1. CPU- und Segment-Zustand absichern
+    ; =================================================
+    cld                     ; Clear Direction Flag: Zwingend nötig für BIOS-Operationen
+    mov ax, 0x1000          ; Segmentadresse für den Kernel
+    mov es, ax              ; Setze ES auf das Kernel-Segment (ES = 0x1000)
+    xor bx, bx              ; BX = 0, Ziel-RAM-Adresse ist somit 0x1000:0000
+
+    ; =================================================
+    ; 2. BIOS int 0x13 - Sektoren von der Diskette lesen
+    ; =================================================
+    mov ah, 0x02            ; Funktion: Sektoren lesen
+    mov al, 5               ; Anzahl der zu lesenden Sektoren (2,5 KB)
+    mov ch, 0               ; Zylinder 0
+    mov cl, 2               ; Start-Sektor (Sektor 2, da Sektor 1 der Bootsektor ist)
+    mov dh, 0               ; Head 0
+    mov dl, 0x00            ; Erzwungen: 0x00 steht für das erste Diskettenlaufwerk (-fda)
+                            ; Das stellt sicher, dass kein falscher Wert in DL liegt!
+
+    ; =================================================
+    ; 3. BIOS-Aufruf ausführen und Fehler prüfen
+    ; =================================================
+    int 0x13
+    jc disk_error           ; Wenn das Carry-Flag gesetzt ist, springe zu disk_error
+
+    ; =================================================
+    ; 4. Far Jump zum Kernel
+    ; =================================================
+    jmp 0x1000:0000         ; Sprung zum geladenen Kernel-Code.
+
+disk_error:
+    ; =================================================
+    ; Fehlerbehandlung: Disk-Fehler
+    ; =================================================
+    mov si, diskErrorMsg
+    call print_messageOnScreen
+
+    ; =================================================
+    ; Sleep für fünf Millionen Mikrosekunden (what the fuck?) bevor das System heruntergefahren wird
+    ; für andere Zeiten einfach gewünschten Wert in µs in https://www.rapidtables.com/convert/number/decimal-to-hex.html?x=5000000 eingeben,
+    ; erste Hälfte in CX, zweite Hälfte in DX speichern
+    ; =================================================
+    mov ah, 0x86
+    mov cx, 0x004C          
+    mov dx, 0x4B40          ; 0x004C4B40 = 5.000.000 Mikrosekunden = 5 Sekunden
+    int 0x15                ; BIOS Sleep für 5 Sekunden (5000 ms)
+
+    jmp shutdown_system
 
 shutdown_system:
     mov ax, 0x5301
@@ -186,7 +233,7 @@ get_length:
     .done:
         ret
 
-print_startupMessages:
+print_messageOnScreen:
     .print_loop:
         mov al, [si]
         cmp al, 0
@@ -217,6 +264,7 @@ current_selection db 0
 
 greetingMsg db "Willkommen zu laxOS v0.0.1!", 13, 10, 0
 questionMsg db "Was willst du tun?", 13, 10, 0
+diskErrorMsg db "Fehler: Konnte Kernel nicht laden.", 13, 10, 0
 
 menuSelection_1 db "laxOS starten", 0
 menuSelection_2 db "Shutdown", 0
