@@ -17,9 +17,18 @@ kernel_start:
     ; -------------------------------------------------------------------------
     ; TODO: 2. Bildschirm-Reset und Begrüßung
     ; -------------------------------------------------------------------------
-    ; - Videospeicher bereinigen (Bildschirm leeren) via int 0x10
-    ; - Ausgabe der Kernel-Willkommensnachricht zur Bestätigung der Ausführung
-    
+    ; 2a) - Videospeicher bereinigen (Bildschirm leeren) via int 0x10
+    call clear_screen
+
+    ; 2b) - Begrüßungsnachricht und Frage ausgeben
+    mov si, kernel_msg
+    call print_messageOnScreen
+    call sleep
+
+    ; -------------------------------------------------------------------------
+    ; KERNEL-STOPP (Verhindert das Hineinlaufen in die Hilfsfunktionen)
+    ; -------------------------------------------------------------------------
+    jmp kernel_hang
 
     ; -------------------------------------------------------------------------
     ; TODO: 3. Kernfunktionen und Systemarchitektur
@@ -30,11 +39,54 @@ kernel_start:
     ; - Entwicklung eines hardwarenahen Tastaturtreibers
 
 
+; ==============================================================================
+; Hilfsfunktionen
+; ==============================================================================
+print_messageOnScreen:
+    ; Ausgabe der Nachricht auf dem Bildschirm
+    mov al, [si]
+    cmp al, 0
+    je .done                ; GEÄNDERT: Springe zu .done statt direkt in den Hang
+
+    mov ah, 0x0E
+    int 0x10
+    inc si
+    jmp print_messageOnScreen
+
+.done:
+    ret                     ; NEU: Kehrt ordnungsgemäß zum Hauptprogramm zurück
+
 kernel_hang:
     hlt
     jmp kernel_hang
+
+sleep:
+    ; ================================================= 
+    ; Sleep für fünf Millionen Mikrosekunden (what the fuck?)
+    ; =================================================
+    mov ah, 0x86
+    mov cx, 0x004C          
+    mov dx, 0x4B40          ; 0x004C4B40 = 5.000.000 Mikrosekunden = 5 Sekunden
+    int 0x15                ; BIOS Sleep für 5 Sekunden (5000 ms)
+    ret
+
+clear_screen:
+    mov ax, 0x0600
+    mov bh, 0x07      ; Hintergrundfarbe: Schwarz, Vordergrundfarbe: Weiß
+    mov cx, 0         ; Startzeile (0)
+    mov dx, 0x184F    ; Endzeile (24), Endspalte (79)
+    int 0x10          ; BIOS-Interrupt für Bildschirmoperationen
+
+    ; Cursor auf 0,0 setzen
+    mov dx, 0x0000
+    mov bh, 0x00
+    mov ah, 0x02
+    int 0x10
+    ret
 
 ; -------------------------------------------------------------------------
 ; Datenbereich
 ; -------------------------------------------------------------------------
 kernel_msg db "laxOS Kernel erfolgreich geladen.", 13, 10, 0
+
+times 2560 - ($ - $$) db 0

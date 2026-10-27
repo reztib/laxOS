@@ -154,33 +154,34 @@ clear_pointer_space:
 ; ==================================================
 start_laxos:
     ; =================================================
-    ; Lade den Kernel in den Speicher
+    ; 1. CPU- und Segment-Zustand absichern
     ; =================================================
+    cld                     ; Clear Direction Flag: Zwingend nötig für BIOS-Operationen
     mov ax, 0x1000          ; Segmentadresse für den Kernel
-    mov es, ax              ; Setze ES auf das Kernel-Segment, ES = 0x1000
-    xor bx, bx              ; BX = 0, RAM-Adresse 0x1000:0000
+    mov es, ax              ; Setze ES auf das Kernel-Segment (ES = 0x1000)
+    xor bx, bx              ; BX = 0, Ziel-RAM-Adresse ist somit 0x1000:0000
 
     ; =================================================
-    ; BIOS int 0x13 - Lese Sektoren von der Festplatte
+    ; 2. BIOS int 0x13 - Sektoren von der Diskette lesen
     ; =================================================
-    mov ah, 0x02           ; Funktion: Sektoren lesen
-    mov al, 5              ; Anzahl der zu lesenden Sektoren (ca. 2,5 KB)
-    mov ch, 0              ; Zylinder 0
-    mov cl, 2              ; Start-Sektor (Sektor 1 der Bootsektor ist)
-    mov dh, 0              ; Head 0
-    ; Register DL enthält beim Booten automatisch die ID des aktuellen Boot-Laufwerks.
-    ; Da wir DL nicht verändert haben, liest das BIOS vom selben Laufwerk, von dem wir gebootet haben.
+    mov ah, 0x02            ; Funktion: Sektoren lesen
+    mov al, 5               ; Anzahl der zu lesenden Sektoren (2,5 KB)
+    mov ch, 0               ; Zylinder 0
+    mov cl, 2               ; Start-Sektor (Sektor 2, da Sektor 1 der Bootsektor ist)
+    mov dh, 0               ; Head 0
+    mov dl, 0x00            ; Erzwungen: 0x00 steht für das erste Diskettenlaufwerk (-fda)
+                            ; Das stellt sicher, dass kein falscher Wert in DL liegt!
 
     ; =================================================
-    ; BIOS Aufruf ausführen und Fehler prüfen
+    ; 3. BIOS-Aufruf ausführen und Fehler prüfen
     ; =================================================
     int 0x13
-    jc disk_error          ; Wenn Carry-Flag gesetzt ist, gab es einen Fehler
+    jc disk_error           ; Wenn das Carry-Flag gesetzt ist, springe zu disk_error
 
     ; =================================================
-    ; Far Jump zum Kernel
+    ; 4. Far Jump zum Kernel
     ; =================================================
-    jmp 0x1000:0000         ; Sringe zum geladenen Kernel-Code. Goodbye BIOS, hello Kernel!
+    jmp 0x1000:0000         ; Sprung zum geladenen Kernel-Code.
 
 disk_error:
     ; =================================================

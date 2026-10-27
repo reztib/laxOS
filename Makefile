@@ -21,9 +21,9 @@ build/laxOS.img : build/boot.bin build/kernel.bin
 	dd if=build/kernel.bin of=build/laxOS.img conv=notrunc bs=512 seek=1;
 
 # separation of building and running for structural purposes and control
-# running the combined OS image in qemu
+# running the combined OS image in qemu as a floppy disk
 run : build/laxOS.img
-	qemu-system-x86_64 -drive format=raw,file=build/laxOS.img
+	qemu-system-x86_64 -fda build/laxOS.img
 
 .PHONY : clean
 clean :
