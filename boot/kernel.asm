@@ -1,43 +1,39 @@
 ; =============================================================================
 ; laxOS Kernel - Hauptprogramm
 ; =============================================================================
-; Dieser Kernel wird vom Bootloader ab der Speicheradresse 0x1000:0000 ausgeführt.
-; =============================================================================
 
-bits 16                             ; Wir befinden uns immer noch im 16-Bit Real Mode
-org 0x0000                          ; Offset ist 0, da wir über das Segment (0x1000) anspringen
+bits 16
+org 0x0000
 
 kernel_start:
     ; -------------------------------------------------------------------------
-    ; TODO: 1. REGISTER INITIALISIEREN
+    ; TODO: 1. Register- und Stack-Initialisierung
     ; -------------------------------------------------------------------------
-    ; Da wir per Far-Jump (0x1000:0000) hierher gesprungen sind, steht CS auf 0x1000.
-    ; Setze die restlichen Segmentregister (DS, ES) ebenfalls auf diesen Wert,
-    ; damit deine Daten-Labels korrekt adressiert werden.
-    ;
-    ; Vergiss nicht, auch einen eigenen Stack (SS, SP) für den Kernel zu definieren,
-    ; damit er sicher läuft und keine anderen Speicherbereiche überschreibt.
+    ; - Segmentregister DS und ES an das aktuelle CS-Segment (0x1000) angleichen
+    ; - Separaten Kernel-Stack über SS und SP definieren to verhindern von Overflows
 
 
     ; -------------------------------------------------------------------------
-    ; TODO: 2. KERNEL-BEGRÜSSUNG AUSGEBEN
+    ; TODO: 2. Bildschirm-Reset und Begrüßung
     ; -------------------------------------------------------------------------
-    ; Lösche den Bildschirm oder setze eine neue Zeile an, um zu signalisieren,
-    ; dass der Kernel erfolgreich geladen wurde und die Kontrolle übernommen hat.
-    ; Nutze dafür wieder den vertrauten BIOS Video-Interrupt 'int 0x10'.
+    ; - Videospeicher bereinigen (Bildschirm leeren) via int 0x10
+    ; - Ausgabe der Kernel-Willkommensnachricht zur Bestätigung der Ausführung
 
 
     ; -------------------------------------------------------------------------
-    ; TODO: 3. ERWEITERTE FUNKTIONEN IMPLEMENTIEREN
+    ; TODO: 3. Kernfunktionen und Systemarchitektur
     ; -------------------------------------------------------------------------
-    ; Hier sind deiner Kreativität keine Grenzen gesetzt:
-    ; - Eigene Befehlszeile (Shell / CLI) für Befehle bauen
-    ; - Hardware-Informationen über das BIOS auslesen
-    ; - In den 32-Bit Protected Mode wechseln (GDT aufsetzen)
-    ; - Einen eigenen Tastaturtreiber schreiben
+    ; - Implementierung der grundlegenden Befehlseingabe (CLI-Schnittstelle)
+    ; - Abfrage systemrelevanter Hardware-Informationen über BIOS-Interrupts
+    ; - Vorbereitung und Wechsel in den 32-Bit Protected Mode (GDT-Aufbau)
+    ; - Entwicklung eines hardwarenahen Tastaturtreibers
 
+
+kernel_hang:
+    hlt
+    jmp kernel_hang
 
 ; -------------------------------------------------------------------------
-; DATENBEREICH DES KERNELS
+; Datenbereich
 ; -------------------------------------------------------------------------
-; Hier kannst du deine kernel-spezifischen Zeichenketten und Variablen definieren.
+kernel_msg db "laxOS Kernel erfolgreich geladen.", 13, 10, 0
