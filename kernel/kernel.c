@@ -36,14 +36,20 @@ typedef unsigned int   uint32_t;  // Exakt 4 Bytes
 // SCREEN & TEXT I/O IMPLEMENTIERUNG
 // =============================================================================
 void clear_screen() {
-    // Zeiger auf den VGA-Textmodus-Speicher
     char* video_memory = (char*) 0xB8000;
     
-    // 80 Spalten * 25 Zeilen = 2000 Zeichen. Jedes Zeichen braucht 2 Bytes.
+    // Kompletten Bildschirm mit Leerzeichen füllen
     for (int i = 0; i < 80 * 25 * 2; i += 2) {
-        video_memory[i]     = ' ';   // Zeichen auf Leerzeichen setzen
-        video_memory[i + 1] = 0x0F;  
+        video_memory[i]     = ' ';   
+        video_memory[i + 1] = 0x07;  
     }
+    
+    // WICHTIG: Koordinaten absolut nullen!
+    cursor_x = 7;
+    cursor_y = 0;
+    
+    // Hardware-Cursor nach oben links zwingen
+    update_hardware_cursor(cursor_x, cursor_y);
 }
 
 void kprint(const char* str, unsigned int line) {
