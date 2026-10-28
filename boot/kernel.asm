@@ -1,75 +1,54 @@
 ; =============================================================================
-; laxOS Kernel - Hauptprogramm
+; laxOS Kernel - Hauptprogramm & Loader
 ; =============================================================================
 
-bits 16
-org 0x0000
+section .text       ; Definiert die Code-Sektion für das ELF32-Format
+
+[bits 16]           ; Erzwingt 16-Bit-Codegenerierung in der ELF-Sektion
+
+global kernel_start ; Macht den Einstiegspunkt für den Linker sichtbar
+extern kernel_main  ; Deklariert die externe C-Funktion
 
 kernel_start:
+    ; -------------------------------------------------------------------------
+    ; 1. Register- und Stack-Initialisierung
+    ; -------------------------------------------------------------------------
     mov ax, cs      ; Kopiert den aktuellen Segmentwert (0x1000) nach AX
-    mov ds, ax      ; Setzt das Datensegment (DS) auf das aktuelle Code-Segment (0x1000)
-    mov es, ax      ; Setzt Extrasegment (ES) auf das aktuelle Code-Segment (0x1000)
-
-    mov ss, ax      ; Setzt das Stack-Segment (SS) auf das aktuelle Code-Segment (0x1000)
-    mov sp, 0xFFFF  ; Setzt den Stack-Pointer (SP) auf die oberste Adresse des Stacks (0xFFFF)
-
+    mov ds, ax      ; Setzt das Datensegment (DS) auf 0x1000
+    mov es, ax      ; Setzt das Extrasegment (ES) auf 0x1000
+    mov ss, ax      ; Setzt das Stack-Segment (SS) auf 0x1000
+    mov sp, 0xFFFF  ; Setzt den Stack-Pointer auf das Maximum des Segments
 
     ; -------------------------------------------------------------------------
-    ; 2. Bildschirm-Reset und Begrüßung
+    ; 2. Assembler-Seitiger Bildschirm-Reset und Begrüßung
     ; -------------------------------------------------------------------------
-    ; 2a) - Videospeicher bereinigen (Bildschirm leeren) via int 0x10
     call clear_screen
 
-    ; 2b) - Begrüßungsnachricht ausgeben
     mov si, kernel_msg
     call print_messageOnScreen
 
     ; -------------------------------------------------------------------------
-    ; KERNEL-STOPP (Verhindert das Hineinlaufen in die Hilfsfunktionen)
+    ; 3. Übergabe an das C-Hauptprogramm (TODO 3)
     ; -------------------------------------------------------------------------
+    call kernel_main
+
+kernel_hang:
+    hlt             ; Sicherheitsnetz, falls der C-Kernel jemals beendet wird
     jmp kernel_hang
 
-    ; -------------------------------------------------------------------------
-    ; @TODO: 3. Kernfunktionen und Systemarchitektur
-    ; -------------------------------------------------------------------------
-    ; - 3a) Implementierung der grundlegenden Befehlseingabe (CLI-Schnittstelle)
-    
-
-    ; - 3b) Abfrage systemrelevanter Hardware-Informationen über BIOS-Interrupts
-    ; - 3c) Vorbereitung und Wechsel in den 32-Bit Protected Mode (GDT-Aufbau)
-    ; - 3d) Entwicklung eines hardwarenahen Tastaturtreibers
-
-
-
 ; ==============================================================================
-; Hilfsfunktionen
+; Hilfsfunktionen (Garantieren die korrekte Stack-Struktur im Speicher)
 ; ==============================================================================
 print_messageOnScreen:
-    ; Ausgabe der Nachricht auf dem Bildschirm
     mov al, [si]
     cmp al, 0
-    je .done                ; GEÄNDERT: Springe zu .done statt direkt in den Hang
+    je .done
 
     mov ah, 0x0E
     int 0x10
     inc si
     jmp print_messageOnScreen
-
 .done:
-    ret                     ; NEU: Kehrt ordnungsgemäß zum Hauptprogramm zurück
-
-kernel_hang:
-    hlt
-    jmp kernel_hang
-
-sleep:
-    ; ================================================= 
-    ; Sleep für fünf Millionen Mikrosekunden (what the fuck?)
-    ; =================================================
-    mov ah, 0x86
-    mov cx, 0x004C          
-    mov dx, 0x4B40          ; 0x004C4B40 = 5.000.000 Mikrosekunden = 5 Sekunden
-    int 0x15                ; BIOS Sleep für 5 Sekunden (5000 ms)
     ret
 
 clear_screen:
@@ -77,7 +56,7 @@ clear_screen:
     mov bh, 0x07      ; Hintergrundfarbe: Schwarz, Vordergrundfarbe: Weiß
     mov cx, 0         ; Startzeile (0)
     mov dx, 0x184F    ; Endzeile (24), Endspalte (79)
-    int 0x10          ; BIOS-Interrupt für Bildschirmoperationen
+    int 0x10
 
     ; Cursor auf 0,0 setzen
     mov dx, 0x0000
@@ -87,8 +66,9 @@ clear_screen:
     ret
 
 ; -------------------------------------------------------------------------
-; Datenbereich
+; Datenbereich des Loaders
 ; -------------------------------------------------------------------------
-kernel_msg db "laxOS Kernel erfolgreich geladen.", 13, 10, 0
+kernel_msg db "laxOS Kernel erfolgreich geladen. Starte C-Subsystem...", 13, 10, 0
 
+; Sektoren-Padding bleibt hier, damit die Datei groß genug für das BIOS ist
 times 2560 - ($ - $$) db 0

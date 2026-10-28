@@ -1,7 +1,6 @@
 # target (output file): prerequisites (input file(s))
 # 						 recipe (what to do)
 
-# make takes the first argument from the top, which in this case is all
 all: build/laxOS.img
 
 # creating build/ folder (if it does not already exist), assembling the bootloader
@@ -9,10 +8,19 @@ build/boot.bin : boot/boot.asm
 	mkdir -p build; \
 	nasm -f bin boot/boot.asm -o build/boot.bin;
 
-# assembling the kernel
-build/kernel.bin : boot/kernel.asm
+# assembling the kernel entry bootstrap into an object file
+build/kernel_asm.o : boot/kernel.asm
 	mkdir -p build; \
-	nasm -f bin boot/kernel.asm -o build/kernel.bin;
+	nasm -f elf32 boot/kernel.asm -o build/kernel_asm.o;
+
+# compiling the C kernel into an object file with strict freestanding 16-bit flags
+build/kernel_c.o : kernel/kernel.c
+	mkdir -p build; \
+	gcc -m32 -march=i386 -ffreestanding -fno-pie -nostdlib -O0 -c kernel/kernel.c -o build/kernel_c.o;
+
+# linking using your linker.ld script
+build/kernel.bin : build/kernel_asm.o build/kernel_c.o linker.ld
+	ld -m elf_i386 -T linker.ld build/kernel_asm.o build/kernel_c.o -o build/kernel.bin;
 
 # combining bootloader and kernel into a raw 1.44MB floppy image
 build/laxOS.img : build/boot.bin build/kernel.bin
@@ -20,7 +28,6 @@ build/laxOS.img : build/boot.bin build/kernel.bin
 	dd if=build/boot.bin of=build/laxOS.img conv=notrunc bs=512 count=1; \
 	dd if=build/kernel.bin of=build/laxOS.img conv=notrunc bs=512 seek=1;
 
-# separation of building and running for structural purposes and control
 # running the combined OS image in qemu as a floppy disk
 run : build/laxOS.img
 	qemu-system-x86_64 -fda build/laxOS.img
