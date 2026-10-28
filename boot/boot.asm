@@ -3,6 +3,11 @@ bits 16     ; 16 bit real mode
 
 Start:
     ; -------------------------
+    ; Boot-Laufwerk sichern
+    ; -------------------------
+    mov [boot_drive], dl
+
+    ; -------------------------
     ; Setze Segmentregister
     ; -------------------------
     xor ax, ax
@@ -153,35 +158,26 @@ clear_pointer_space:
 ; Aktionen der Menüeinträge
 ; ==================================================
 start_laxos:
-    ; =================================================
-    ; 1. CPU- und Segment-Zustand absichern
-    ; =================================================
-    cld                     ; Clear Direction Flag: Zwingend nötig für BIOS-Operationen
-    mov ax, 0x1000          ; Segmentadresse für den Kernel
-    mov es, ax              ; Setze ES auf das Kernel-Segment (ES = 0x1000)
-    xor bx, bx              ; BX = 0, Ziel-RAM-Adresse ist somit 0x1000:0000
+    cld
+    ; Wir bleiben im flachen Segment 0x0000
+    xor ax, ax              
+    mov es, ax              ; ES = 0x0000
+    mov bx, 0x9000          ; BX = 0x9000 -> Zieladresse im RAM ist exakt 0x0000:0x9000
 
-    ; =================================================
-    ; 2. BIOS int 0x13 - Sektoren von der Diskette lesen
-    ; =================================================
-    mov ah, 0x02            ; Funktion: Sektoren lesen
-    mov al, 5               ; Anzahl der zu lesenden Sektoren (2,5 KB)
-    mov ch, 0               ; Zylinder 0
-    mov cl, 2               ; Start-Sektor (Sektor 2, da Sektor 1 der Bootsektor ist)
+    mov ah, 0x02            ; Sektoren lesen
+    mov al, 20              ; Lese 20 Sektoren
+    mov ch, 0               ; Cylinder 0
+    mov cl, 2               ; Sektor 2 (Direkt nach dem Bootloader)
     mov dh, 0               ; Head 0
-    mov dl, 0x00            ; Erzwungen: 0x00 steht für das erste Diskettenlaufwerk (-fda)
-                            ; Das stellt sicher, dass kein falscher Wert in DL liegt!
-
-    ; =================================================
-    ; 3. BIOS-Aufruf ausführen und Fehler prüfen
-    ; =================================================
+    mov dl, [boot_drive]    ; Originallaufwerk nutzen (wird von QEMU als 0x00 übergeben)
     int 0x13
-    jc disk_error           ; Wenn das Carry-Flag gesetzt ist, springe zu disk_error
+    jc disk_error
 
-    ; =================================================
-    ; 4. Far Jump zum Kernel
-    ; =================================================
-    jmp 0x1000:0000         ; Sprung zum geladenen Kernel-Code.
+    ; WICHTIG: Far Jump mit Segment 0x0000 und Offset 0x9000.
+    ; Das matcht perfekt mit der ". = 0x9000;" Anweisung deines Linker-Skripts!
+    jmp 0x0000:0x9000       
+
+
 
 disk_error:
     ; =================================================
@@ -260,6 +256,7 @@ print_menu:
 ; -------------------------
 ; Datenbereich (Variablen & Texte)
 ; -------------------------
+boot_drive db 0
 current_selection db 0
 
 greetingMsg db "Willkommen zu laxOS v0.0.1!", 13, 10, 0

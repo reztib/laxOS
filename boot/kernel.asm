@@ -1,74 +1,62 @@
-; =============================================================================
-; laxOS Kernel - Hauptprogramm & Loader
-; =============================================================================
+section .text
+[bits 16]
 
-section .text       ; Definiert die Code-Sektion für das ELF32-Format
-
-[bits 16]           ; Erzwingt 16-Bit-Codegenerierung in der ELF-Sektion
-
-global kernel_start ; Macht den Einstiegspunkt für den Linker sichtbar
-extern kernel_main  ; Deklariert die externe C-Funktion
+global kernel_start
+extern kernel_main
 
 kernel_start:
-    ; -------------------------------------------------------------------------
-    ; 1. Register- und Stack-Initialisierung
-    ; -------------------------------------------------------------------------
-    mov ax, cs      ; Kopiert den aktuellen Segmentwert (0x1000) nach AX
-    mov ds, ax      ; Setzt das Datensegment (DS) auf 0x1000
-    mov es, ax      ; Setzt das Extrasegment (ES) auf 0x1000
-    mov ss, ax      ; Setzt das Stack-Segment (SS) auf 0x1000
-    mov sp, 0xFFFF  ; Setzt den Stack-Pointer auf das Maximum des Segments
+    cli                         ; Interrupts deaktivieren
+    
+    lgdt [gdt_descriptor]       ; GDT laden
+    
+    ; Protected Mode aktivieren
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
 
-    ; -------------------------------------------------------------------------
-    ; 2. Assembler-Seitiger Bildschirm-Reset und Begrüßung
-    ; -------------------------------------------------------------------------
-    call clear_screen
+    ; WICHTIG: 'dword' zwingt NASM, den Sprungbefehl so zu codieren,
+    ; dass er aus dem 16-Bit-Modus heraus das 32-Bit-Ziel sauber anspringt!
+    jmp 0x08:dword init_32bit
 
-    mov si, kernel_msg
-    call print_messageOnScreen
+[bits 32]
+init_32bit:
+    ; Segmente auf den 32-Bit-Datenselektor (0x10) einstellen
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    
+    ; Stack sicher bei 0x80000 platzieren
+    mov esp, 0x80000
 
-    ; -------------------------------------------------------------------------
-    ; 3. Übergabe an das C-Hauptprogramm (TODO 3)
-    ; -------------------------------------------------------------------------
+    ; Ruft die C-Funktion direkt auf
     call kernel_main
 
-kernel_hang:
-    hlt             ; Sicherheitsnetz, falls der C-Kernel jemals beendet wird
-    jmp kernel_hang
+.hang:
+    hlt
+    jmp .hang
 
-; ==============================================================================
-; Hilfsfunktionen (Garantieren die korrekte Stack-Struktur im Speicher)
-; ==============================================================================
-print_messageOnScreen:
-    mov al, [si]
-    cmp al, 0
-    je .done
+; =============================================================================
+; Global Descriptor Table (GDT)
+; =============================================================================
+align 4
+gdt_start:
+    dd 0x00000000, 0x00000000   ; Null-Deskriptor
 
-    mov ah, 0x0E
-    int 0x10
-    inc si
-    jmp print_messageOnScreen
-.done:
-    ret
+gdt_code:
+    dw 0xFFFF, 0x0000           ; Limit 0-15, Base 0-15
+    db 0x00, 0x9A, 0xCF, 0x00   ; Base 16-23, Access, Flags+Limit, Base 24-31
 
-clear_screen:
-    mov ax, 0x0600
-    mov bh, 0x07      ; Hintergrundfarbe: Schwarz, Vordergrundfarbe: Weiß
-    mov cx, 0         ; Startzeile (0)
-    mov dx, 0x184F    ; Endzeile (24), Endspalte (79)
-    int 0x10
+gdt_data:
+    dw 0xFFFF, 0x0000           ; Limit 0-15, Base 0-15
+    db 0x00, 0x92, 0xCF, 0x00   ; Base 16-23, Access, Flags+Limit, Base 24-31
+gdt_end:
 
-    ; Cursor auf 0,0 setzen
-    mov dx, 0x0000
-    mov bh, 0x00
-    mov ah, 0x02
-    int 0x10
-    ret
+gdt_descriptor:
+    dw gdt_end - gdt_start - 1   ; GDT-Größe
+    dd gdt_start                ; Absolute Adresse (berechnet ab 0x9000)
 
-; -------------------------------------------------------------------------
-; Datenbereich des Loaders
-; -------------------------------------------------------------------------
-kernel_msg db "laxOS Kernel erfolgreich geladen. Starte C-Subsystem...", 13, 10, 0
-
-; Sektoren-Padding bleibt hier, damit die Datei groß genug für das BIOS ist
-times 2560 - ($ - $$) db 0
+; Sektoren-Padding für das BIOS beibehalten
+;times 2560 - ($ - $$) db 0

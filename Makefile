@@ -13,14 +13,14 @@ build/kernel_asm.o : boot/kernel.asm
 	mkdir -p build; \
 	nasm -f elf32 boot/kernel.asm -o build/kernel_asm.o;
 
-# compiling the C kernel into an object file with strict freestanding 16-bit flags
+# compiling the C kernel into an object file (Native 32-bit, no 16-bit hacks)
 build/kernel_c.o : kernel/kernel.c
 	mkdir -p build; \
-	gcc -m32 -march=i386 -ffreestanding -fno-pie -nostdlib -O0 -c kernel/kernel.c -o build/kernel_c.o;
+	gcc -m32 -ffreestanding -fno-pie -nostdlib -c kernel/kernel.c -o build/kernel_c.o;
 
-# linking using your linker.ld script
+# linking using your linker.ld script (ensuring explicit order)
 build/kernel.bin : build/kernel_asm.o build/kernel_c.o linker.ld
-	ld -m elf_i386 -T linker.ld build/kernel_asm.o build/kernel_c.o -o build/kernel.bin;
+	ld -m elf_i386 -T linker.ld -o build/kernel.bin build/kernel_asm.o build/kernel_c.o;
 
 # combining bootloader and kernel into a raw 1.44MB floppy image
 build/laxOS.img : build/boot.bin build/kernel.bin

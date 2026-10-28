@@ -1,32 +1,30 @@
-__asm__(".code16gcc\n");
-
-void print_char(char c);
-void print_string(const char* str);
-
-void kernel_main(void) {
-    /* Signalisiere die erfolgreiche Ausführung des C-Codes */
-    print_string("C-Infrastruktur aktiv. Bereit fuer Befehle.\r\n");
-
-    // -------------------------------------------------------------------------
-    // TODO 3: AB HIER DEINE IMPLEMENTIERUNG IN C
-    // -------------------------------------------------------------------------
-
-    while(1) {
-        // Hält die CPU stabil im Leerlauf, bis eine Taste gedrückt wird
-        __asm__ __volatile__("hlt");
+void clear_screen() {
+    // Zeiger auf den VGA-Textmodus-Speicher
+    char* video_memory = (char*) 0xB8000;
+    
+    // 80 Spalten * 25 Zeilen = 2000 Zeichen. Jedes Zeichen braucht 2 Bytes.
+    for (int i = 0; i < 80 * 25 * 2; i += 2) {
+        video_memory[i]     = ' ';   // Zeichen auf Leerzeichen setzen
+        video_memory[i + 1] = 0x07;  // Farbe: Hellgrauer Text auf schwarzem Grund
     }
 }
 
-void print_char(char c) {
-    __asm__ __volatile__(
-        "int $0x10"
-        :
-        : "a"((0x0E << 8) | (unsigned char)c), "b"(0x0007)
-    );
+void kprint(const char* str, unsigned int line) {
+    volatile char* vga = (volatile char*)(0xB8000 + (line * 80 * 2));
+    int i = 0;
+    while (str[i] != '\0') {
+        vga[i * 2] = str[i];
+        vga[i * 2 + 1] = 0x0F; // Weiß auf Schwarz
+        i++;
+    }
 }
 
-void print_string(const char* str) {
-    while (*str) {
-        print_char(*str++);
+void kernel_main(void) {
+    clear_screen();
+    kprint("laxOS Kernel erfolgreich im 32-Bit Protected Mode gestartet!", 3);
+    kprint("C-Infrastruktur steht. Bereit für CLI-Implementierung.", 4);
+
+    while(1) {
+        __asm__ __volatile__("hlt");
     }
 }
