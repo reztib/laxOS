@@ -1,3 +1,7 @@
+typedef unsigned char  uint8_t;   // Exakt 1 Byte (0-255)
+typedef unsigned short uint16_t;  // Exakt 2 Bytes
+typedef unsigned int   uint32_t;  // Exakt 4 Bytes
+
 void clear_screen() {
     // Zeiger auf den VGA-Textmodus-Speicher
     char* video_memory = (char*) 0xB8000;
@@ -27,4 +31,16 @@ void kernel_main(void) {
     while(1) {
         __asm__ __volatile__("hlt");
     }
+}
+
+// Sendet ein Byte an einen Hardware-Port
+static inline void outb(unsigned short port, unsigned char value) {
+    __asm__ __volatile__("outb %0, %1" : : "a"(value), "Nd"(port));
+}
+
+// Liest ein Byte von einem Hardware-Port
+static inline unsigned char inb(unsigned short port) {
+    unsigned char ret;
+    __asm__ __volatile__("inb %1, %0" : "=a"(ret) : "Nd"(port));
+    return ret;
 }
