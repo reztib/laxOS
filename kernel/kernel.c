@@ -19,14 +19,28 @@ int cursor_x = 7;   // Spalte (0-79)
 int cursor_y = 0;   // Zeile (0-24)
 
 /*
-    Prototypen für die Funktionen, die in kernel.c implementiert sind
+    Vollständige Funktionsprototypen (Forward Declarations)
 */
-void update_hardware_cursor(int x, int y);
+// Screen & Text I/O
+void clear_screen(void);
+void kprint(const char* str, unsigned int line);
 void putchar(char c);
 void print(const char* str);
-void execute_command(const char* command);
+void update_hardware_cursor(int x, int y);
+
+// Hardware I/O Ports
 static inline void outb(unsigned short port, unsigned char value);
 static inline unsigned char inb(unsigned short port);
+
+// Interrupt Handling (IDT & PIC)
+void idt_set_gate(uint8_t num, uint32_t base, uint16_t sel, uint8_t flags);
+void init_idt(void);
+void pic_remap(void);
+
+// Tastatur & CLI
+void keyboard_handler_c(void);
+int laxOS_strcmp(const char *a, const char *b);
+void execute_command(const char *cmd);
 
 typedef unsigned char  uint8_t;   // Exakt 1 Byte (0-255)
 typedef unsigned short uint16_t;  // Exakt 2 Bytes
@@ -44,8 +58,7 @@ void clear_screen() {
         video_memory[i + 1] = 0x07;  
     }
     
-    // WICHTIG: Koordinaten absolut nullen!
-    cursor_x = 7;
+    cursor_x = 7; // Setze den Cursor auf die X-Position nach dem Prompt
     cursor_y = 0;
     
     // Hardware-Cursor nach oben links zwingen
@@ -260,16 +273,20 @@ void print(const char* str) {
 
 void execute_command(const char *cmd) {
     if (laxOS_strcmp(cmd, "hilfe") == 0) {
-        print("Befehlsübersicht:\n");
+        print("Befehlsuebersicht:\n");
         print("hilfe - Diese Nachricht\n");
-        print("clear - Bildschirm löschen\n");
+        print("clear - Bildschirm loeschen\n");
+        // HINWEIS: Das letzte \n hier triggert automatisch das neue "laxOS> " über putchar!
     } 
     else if (laxOS_strcmp(cmd, "clear") == 0) {
         clear_screen();
-        kprint("laxOS> ", cursor_y); // Prompt erneut ausgeben
+        // Da clear_screen alles loescht und x=7, y=0 setzt, schreiben wir das Prompt direkt in Zeile 0
+        kprint("laxOS> ", 0); 
     } 
     else if (laxOS_strcmp(cmd, "") == 0) {
-        // Leere Eingabe (nur ENTER gedrückt) -> Tue nichts, rutscht einfach eins tiefer
+        // Wenn nur ENTER gedrückt wurde, simulieren wir einfach einen leeren Zeilenumbruch,
+        // welcher über putchar('\n') ein neues Prompt in der nächsten Zeile erzeugt.
+        putchar('\n');
     } 
     else {
         print("Unbekannter Befehl (Tipp: 'hilfe').\n");
