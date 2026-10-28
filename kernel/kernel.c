@@ -208,51 +208,76 @@ void pic_remap(void) {
 // =============================================================================
 // Scancode -> ASCII
 // Index des Arrays entspricht dem Scancode
-const char kbd_us[128] = {
-    0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
-  '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
-    0,  'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',   0,
- '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',   0, '*',   0, ' '
+// Gibt an, ob Shift (links oder rechts) aktuell gedrückt gehalten wird
+int shift_pressed = 0;
+
+// Ebene 1: Normal (Kleinschreibung) - Bereits auf deutsches QWERTZ angepasst (Z und Y getauscht)
+const char kbd_de_main[128] = {
+    0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 0xE1, '`', '\b',  // 0xE1 = ß
+  '\t', 'q', 'w', 'e', 'r', 't', 'z', 'u', 'i', 'o', 'p', 0x81, '+', '\n',      // 0x81 = ü
+    0,  'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 0x94, 0x84, '^',   0,      // 0x94 = ö, 0x84 = ä
+  '#', 'y', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '-',   0, '*',   0, ' '
+};
+
+// Ebene 2: Shift gedrückt (Großschreibung & obere Sonderzeichen)
+const char kbd_de_shift[128] = {
+    0,  27, '!', '"', 0,   '$', '%', '&', '/', '(', ')', '=', '?', '`', '\b',
+  '\t', 'Q', 'W', 'E', 'R', 'T', 'Z', 'U', 'I', 'O', 'P', 0x9A, '*', '\n',      // 0x9A = Ü
+    0,  'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 0x99, 0x8E, 0xF8, 0,       // 0x99 = Ö, 0x8E = Ä, 0xF8 = °
+  '\'', 'Y', 'X', 'C', 'V', 'B', 'N', 'M', ';', ':', '_',   0, '*',   0, ' '
 };
 
 __attribute__((force_align_arg_pointer)) void keyboard_handler_c(void) {
     uint8_t scancode = inb(0x60);
     outb(0x20, 0x20); // EOI an den PIC senden
 
-    // Taste losgelassen (Key Release) -> ignorieren
+    // 1. SHIFT-TASTEN ABFANGEN (Sowohl Drücken als auch Loslassen)
+    if (scancode == 0x2A || scancode == 0x36) {
+        shift_pressed = 1; // Eine der Shift-Tasten wird gehalten
+        return;
+    }
+    if (scancode == 0xAA || scancode == 0xB6) {
+        shift_pressed = 0; // Shift wurde wieder losgelassen
+        return;
+    }
+
+    // 2. Reguläres Loslassen anderer Tasten ignorieren
     if (scancode & 0x80) {
         return;
     }
 
-    // Wir holen uns den passenden Buchstaben aus der Tabelle
-    char ascii = kbd_us[scancode];
+    // 3. Dynamische Tabellen-Auswahl basierend auf dem Shift-Zustand
+    char ascii;
+    if (shift_pressed) {
+        ascii = kbd_de_shift[scancode];
+    } else {
+        ascii = kbd_de_main[scancode];
+    }
 
     if (ascii == 0) return; // Nicht druckbares Zeichen, ignorieren
 
+    // 4. Zeichenverarbeitung für den CLI-Puffer
     if (ascii == '\n') {
-        cli_buffer[cli_buffer_index] = '\0'; // Nullterminator für den String
-        command_ready = 1; // Signalisiert, dass ein Befehl zur Auswertung bereit ist
-        putchar('\n'); // Zeilenumbruch auf dem Bildschirm
-        
+        cli_buffer[cli_buffer_index] = '\0'; 
+        command_ready = 1; 
+        putchar('\n'); 
     }
     else if (ascii == '\b') {
         if (cli_buffer_index > 0) {
-            cli_buffer_index--;      // Lösche das letzte Zeichen aus der "Kiste"
-            
-            // Visuell auf dem Bildschirm löschen:
+            cli_buffer_index--;      
             if (cursor_x > 0) {
-                cursor_x--;          // Ein Schritt zurück nach links
+                cursor_x--;          
                 int index = (cursor_y * 80 + cursor_x) * 2;
                 char* video_memory = (char*) 0xB8000;
-                video_memory[index] = ' '; // Mit Leerzeichen überschreiben
+                video_memory[index] = ' '; 
                 update_hardware_cursor(cursor_x, cursor_y);
             }
         }
     }
     else {
         if (cli_buffer_index < 255) {
-            cli_buffer[cli_buffer_index++] = ascii; // Zeichen in den Puffer schreiben und Index erhöhen
-            putchar(ascii); // Zeichen auf dem Bildschirm ausgeben
+            cli_buffer[cli_buffer_index++] = ascii; 
+            putchar(ascii); 
         }
     }
 }
@@ -273,14 +298,14 @@ void print(const char* str) {
 
 void execute_command(const char *cmd) {
     if (laxOS_strcmp(cmd, "hilfe") == 0) {
-        print("Befehlsuebersicht:\n");
+        print("Befehls\x81""bersicht:\n");
         print("hilfe - Diese Nachricht\n");
-        print("clear - Bildschirm loeschen\n");
+        print("clear - Bildschirm l\x94""schen\n");
         // HINWEIS: Das letzte \n hier triggert automatisch das neue "laxOS> " über putchar!
     } 
     else if (laxOS_strcmp(cmd, "clear") == 0) {
         clear_screen();
-        // Da clear_screen alles loescht und x=7, y=0 setzt, schreiben wir das Prompt direkt in Zeile 0
+        // Da clear_screen alles löscht und x=7, y=0 setzt, schreiben wir das Prompt direkt in Zeile 0
         kprint("laxOS> ", 0); 
     } 
     else if (laxOS_strcmp(cmd, "") == 0) {
