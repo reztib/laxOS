@@ -38,6 +38,33 @@ init_32bit:
     hlt
     jmp .hang
 
+; Macht den Wrapper für den C-Linker sichtbar
+global keyboard_handler_asm
+; Teilt NASM mit, dass diese Funktion in kernel.c existiert
+extern keyboard_handler_c
+
+[bits 32]
+keyboard_handler_asm:
+    pusha                    ; Sichert alle allgemeinen Register (EAX, ECX, etc.)
+    push ds                  ; Sichert die Segmentregister
+    push es
+    push fs
+    push gs
+
+    mov ax, 0x10             ; Kernel-Datensegment laden
+    mov ds, ax
+    mov es, ax
+
+    call keyboard_handler_c  ; Ruft die eigentliche C-Funktion auf
+
+    pop gs                   ; Stellt die Segmentregister wieder her
+    pop fs
+    pop es
+    pop ds
+    popa                     ; Stellt die allgemeinen Register wieder her
+    iret                     ; Interrupt Return (Zwingend erforderlich!)
+
+
 ; =============================================================================
 ; Global Descriptor Table (GDT)
 ; =============================================================================
