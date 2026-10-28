@@ -42,7 +42,7 @@ void clear_screen() {
     // 80 Spalten * 25 Zeilen = 2000 Zeichen. Jedes Zeichen braucht 2 Bytes.
     for (int i = 0; i < 80 * 25 * 2; i += 2) {
         video_memory[i]     = ' ';   // Zeichen auf Leerzeichen setzen
-        video_memory[i + 1] = 0x07;  // Farbe: Hellgrauer Text auf schwarzem Grund
+        video_memory[i + 1] = 0x0F;  
     }
 }
 
@@ -216,6 +216,20 @@ __attribute__((force_align_arg_pointer)) void keyboard_handler_c(void) {
         putchar('\n'); // Zeilenumbruch auf dem Bildschirm
         
     }
+    else if (ascii == '\b') {
+        if (cli_buffer_index > 0) {
+            cli_buffer_index--;      // Lösche das letzte Zeichen aus der "Kiste"
+            
+            // Visuell auf dem Bildschirm löschen:
+            if (cursor_x > 0) {
+                cursor_x--;          // Ein Schritt zurück nach links
+                int index = (cursor_y * 80 + cursor_x) * 2;
+                char* video_memory = (char*) 0xB8000;
+                video_memory[index] = ' '; // Mit Leerzeichen überschreiben
+                update_hardware_cursor(cursor_x, cursor_y);
+            }
+        }
+    }
     else {
         if (cli_buffer_index < 255) {
             cli_buffer[cli_buffer_index++] = ascii; // Zeichen in den Puffer schreiben und Index erhöhen
@@ -230,18 +244,29 @@ int laxOS_strcmp(const char *a, const char *b)
     return (int)(unsigned char)(*a) - (int)(unsigned char)(*b);
 }
 
-void execute_command(const char* command) {
-    if (laxOS_strcmp(command, "help") == 0) {
-        kprint("Available commands:\n", cursor_y + 1);
-        kprint("help - Show this help message\n", cursor_y + 2);
-        kprint("clear - Clear the screen\n", cursor_y + 3);
-    } else if (laxOS_strcmp(command, "clear") == 0) {
+void print(const char* str) {
+    int i = 0;
+    while (str[i] != '\0') {
+        putchar(str[i]);
+        i++;
+    }
+}
+
+void execute_command(const char *cmd) {
+    if (laxOS_strcmp(cmd, "hilfe") == 0) {
+        print("Befehlsübersicht:\n");
+        print("hilfe - Diese Nachricht\n");
+        print("clear - Bildschirm löschen\n");
+    } 
+    else if (laxOS_strcmp(cmd, "clear") == 0) {
         clear_screen();
-        cursor_x = 7; // Reset cursor position after clearing
-        cursor_y = 0;
-    } else {
-        kprint("Unknown command: ", cursor_y + 1);
-        kprint(command, cursor_y + 2);
+        kprint("laxOS> ", cursor_y); // Prompt erneut ausgeben
+    } 
+    else if (laxOS_strcmp(cmd, "") == 0) {
+        // Leere Eingabe (nur ENTER gedrückt) -> Tue nichts, rutscht einfach eins tiefer
+    } 
+    else {
+        print("Unbekannter Befehl (Tipp: 'hilfe').\n");
     }
 }
 
@@ -264,7 +289,7 @@ void kernel_main(void) {
             cli_buffer_index = 0; // Puffer zurücksetzen
             command_ready = 0;    // Flag zurücksetzen
 
-            kprint("laxOS> ", 0); // Prompt erneut ausgeben
+            //kprint("laxOS> ", 0); // Prompt erneut ausgeben
         }
     }
 }
