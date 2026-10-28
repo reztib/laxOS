@@ -1,6 +1,2 @@
-# Erzwinge, dass alle .h und .c Dateien strikt als C gewertet werden
 *.c linguist-language=C
 *.h linguist-language=C
-
-# Wenn du möchtest, dass das Makefile aus den Statistiken verschwindet:
-Makefile linguist-documentation=true
