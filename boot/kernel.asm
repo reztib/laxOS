@@ -1,94 +1,89 @@
-; =============================================================================
-; laxOS Kernel - Hauptprogramm
-; =============================================================================
+section .text
+[bits 16]
 
-bits 16
-org 0x0000
+global kernel_start
+extern kernel_main
 
 kernel_start:
-    mov ax, cs      ; Kopiert den aktuellen Segmentwert (0x1000) nach AX
-    mov ds, ax      ; Setzt das Datensegment (DS) auf das aktuelle Code-Segment (0x1000)
-    mov es, ax      ; Setzt Extrasegment (ES) auf das aktuelle Code-Segment (0x1000)
-
-    mov ss, ax      ; Setzt das Stack-Segment (SS) auf das aktuelle Code-Segment (0x1000)
-    mov sp, 0xFFFF  ; Setzt den Stack-Pointer (SP) auf die oberste Adresse des Stacks (0xFFFF)
-
-
-    ; -------------------------------------------------------------------------
-    ; 2. Bildschirm-Reset und Begrüßung
-    ; -------------------------------------------------------------------------
-    ; 2a) - Videospeicher bereinigen (Bildschirm leeren) via int 0x10
-    call clear_screen
-
-    ; 2b) - Begrüßungsnachricht ausgeben
-    mov si, kernel_msg
-    call print_messageOnScreen
-
-    ; -------------------------------------------------------------------------
-    ; KERNEL-STOPP (Verhindert das Hineinlaufen in die Hilfsfunktionen)
-    ; -------------------------------------------------------------------------
-    jmp kernel_hang
-
-    ; -------------------------------------------------------------------------
-    ; @TODO: 3. Kernfunktionen und Systemarchitektur
-    ; -------------------------------------------------------------------------
-    ; - 3a) Implementierung der grundlegenden Befehlseingabe (CLI-Schnittstelle)
+    cli                         ; Interrupts deaktivieren
     
+    lgdt [gdt_descriptor]       ; GDT laden
+    
+    ; Protected Mode aktivieren
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
 
-    ; - 3b) Abfrage systemrelevanter Hardware-Informationen über BIOS-Interrupts
-    ; - 3c) Vorbereitung und Wechsel in den 32-Bit Protected Mode (GDT-Aufbau)
-    ; - 3d) Entwicklung eines hardwarenahen Tastaturtreibers
+    ; WICHTIG: 'dword' zwingt NASM, den Sprungbefehl so zu codieren,
+    ; dass er aus dem 16-Bit-Modus heraus das 32-Bit-Ziel sauber anspringt!
+    jmp 0x08:dword init_32bit
 
+[bits 32]
+init_32bit:
+    ; Segmente auf den 32-Bit-Datenselektor (0x10) einstellen
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    
+    ; Stack sicher bei 0x80000 platzieren
+    mov esp, 0x80000
 
+    ; Ruft die C-Funktion direkt auf
+    call kernel_main
 
-; ==============================================================================
-; Hilfsfunktionen
-; ==============================================================================
-print_messageOnScreen:
-    ; Ausgabe der Nachricht auf dem Bildschirm
-    mov al, [si]
-    cmp al, 0
-    je .done                ; GEÄNDERT: Springe zu .done statt direkt in den Hang
-
-    mov ah, 0x0E
-    int 0x10
-    inc si
-    jmp print_messageOnScreen
-
-.done:
-    ret                     ; NEU: Kehrt ordnungsgemäß zum Hauptprogramm zurück
-
-kernel_hang:
+.hang:
     hlt
-    jmp kernel_hang
+    jmp .hang
 
-sleep:
-    ; ================================================= 
-    ; Sleep für fünf Millionen Mikrosekunden (what the fuck?)
-    ; =================================================
-    mov ah, 0x86
-    mov cx, 0x004C          
-    mov dx, 0x4B40          ; 0x004C4B40 = 5.000.000 Mikrosekunden = 5 Sekunden
-    int 0x15                ; BIOS Sleep für 5 Sekunden (5000 ms)
-    ret
+; Macht den Wrapper für den C-Linker sichtbar
+global keyboard_handler_asm
+; Teilt NASM mit, dass diese Funktion in kernel.c existiert
+extern keyboard_handler_c
 
-clear_screen:
-    mov ax, 0x0600
-    mov bh, 0x07      ; Hintergrundfarbe: Schwarz, Vordergrundfarbe: Weiß
-    mov cx, 0         ; Startzeile (0)
-    mov dx, 0x184F    ; Endzeile (24), Endspalte (79)
-    int 0x10          ; BIOS-Interrupt für Bildschirmoperationen
+[bits 32]
+keyboard_handler_asm:
+    pusha                    ; Sichert alle allgemeinen Register (EAX, ECX, etc.)
+    push ds                  ; Sichert die Segmentregister
+    push es
+    push fs
+    push gs
 
-    ; Cursor auf 0,0 setzen
-    mov dx, 0x0000
-    mov bh, 0x00
-    mov ah, 0x02
-    int 0x10
-    ret
+    mov ax, 0x10             ; Kernel-Datensegment laden
+    mov ds, ax
+    mov es, ax
 
-; -------------------------------------------------------------------------
-; Datenbereich
-; -------------------------------------------------------------------------
-kernel_msg db "laxOS Kernel erfolgreich geladen.", 13, 10, 0
+    call keyboard_handler_c  ; Ruft die eigentliche C-Funktion auf
 
-times 2560 - ($ - $$) db 0
+    pop gs                   ; Stellt die Segmentregister wieder her
+    pop fs
+    pop es
+    pop ds
+    popa                     ; Stellt die allgemeinen Register wieder her
+    iret                     ; Interrupt Return (Zwingend erforderlich!)
+
+
+; =============================================================================
+; Global Descriptor Table (GDT)
+; =============================================================================
+align 4
+gdt_start:
+    dd 0x00000000, 0x00000000   ; Null-Deskriptor
+
+gdt_code:
+    dw 0xFFFF, 0x0000           ; Limit 0-15, Base 0-15
+    db 0x00, 0x9A, 0xCF, 0x00   ; Base 16-23, Access, Flags+Limit, Base 24-31
+
+gdt_data:
+    dw 0xFFFF, 0x0000           ; Limit 0-15, Base 0-15
+    db 0x00, 0x92, 0xCF, 0x00   ; Base 16-23, Access, Flags+Limit, Base 24-31
+gdt_end:
+
+gdt_descriptor:
+    dw gdt_end - gdt_start - 1   ; GDT-Größe
+    dd gdt_start                ; Absolute Adresse (berechnet ab 0x9000)
+
+; Sektoren-Padding für das BIOS beibehalten
+;times 2560 - ($ - $$) db 0
