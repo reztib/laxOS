@@ -43,12 +43,7 @@ static inline unsigned char inb(unsigned short port) {
 }
 
 /* Ziel: Etablierung einer stabilen Ereignissteuerung durch die CPU.
-       
-   1.2 PIC (Programmable Interrupt Controller)
-       - Remapping des Master- und Slave-PIC (IRQs 0-15 auf Interrupts 32-47).
-       - Verhindert Konflikte mit den internen CPU-Exceptions.
-       
-   1.3 Hardware-Treiber (Tastatur & System-Timer)
+       1.3 Hardware-Treiber (Tastatur & System-Timer)
        - IRQ 1 (Tastatur): Auslesen des Scancodes über I/O-Port 0x60.
        - Implementierung einer Lookup-Tabelle zur Übersetzung in ASCII.
        - IRQ 0 (PIT): System-Timer für deterministische Zeitintervalle.
@@ -104,13 +99,37 @@ void pic_remap(void) {
     outb(0xA1, 0xFF);
 }
 
+// Eine Übersetzungstabelle: Scancode -> ASCII
+// Index des Arrays entspricht dem Scancode
+const char kbd_us[128] = {
+    0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
+  '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
+    0,  'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',   0,
+ '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',   0, '*',   0, ' '
+};
+
 __attribute__((force_align_arg_pointer)) void keyboard_handler_c(void) {
     uint8_t scancode = inb(0x60);
-    outb(0x20, 0x20);
+    outb(0x20, 0x20); // EOI an den PIC senden
 
-    char* video_memory = (char*) 0xB8000;
-    video_memory[0] = 'L';
-    video_memory[1] = 0x0A; 
+    // Bit 7 (0x80) prüft, ob die Taste LOSGELASSEN wurde.
+    // Wenn ja, ignorieren wir das Ereignis vorerst (wichtig, sonst tippt man alles doppelt!)
+    if (scancode & 0x80) {
+        return;
+    }
+
+    // Wir holen uns den passenden Buchstaben aus der Tabelle
+    char ascii = kbd_us[scancode];
+
+    // Wenn es ein gültiges Zeichen ist, geben wir es aus
+    if (ascii != 0) {
+        char* video_memory = (char*) 0xB8000;
+        
+        // Da wir noch keine automatische Cursor-Verschiebung haben,
+        // schreiben wir das Zeichen testweise fest auf Position 0 (oben links)
+        video_memory[0] = ascii; 
+        video_memory[1] = 0x0A; // Hellgrün
+    }
 }
 
 
