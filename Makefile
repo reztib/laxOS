@@ -1,3 +1,6 @@
+# Variables for compiler options
+CC_FLAGS := -m32 -ffreestanding -fno-pie -nostdlib
+
 # target (output file): prerequisites (input file(s))
 # 						 recipe (what to do)
 
@@ -16,7 +19,7 @@ build/kernel_asm.o : boot/kernel.asm
 # compiling the C kernel into an object file (Native 32-bit, no 16-bit hacks)
 build/kernel_c.o : kernel/kernel.c
 	mkdir -p build; \
-	gcc -m32 -ffreestanding -fno-pie -nostdlib -c kernel/kernel.c -o build/kernel_c.o;
+	gcc $(CC_FLAGS) -c kernel/kernel.c -o build/kernel_c.o;
 
 # linking using your linker.ld script (ensuring explicit order)
 build/kernel.bin : build/kernel_asm.o build/kernel_c.o linker.ld
@@ -31,6 +34,11 @@ build/laxOS.img : build/boot.bin build/kernel.bin
 # running the combined OS image in qemu as a floppy disk
 run : build/laxOS.img
 	qemu-system-x86_64 -fda build/laxOS.img
+
+# Linting target for your C kernel code
+.PHONY: lint
+lint:
+	clang-tidy kernel/kernel.c -- $(CC_FLAGS)
 
 .PHONY : clean
 clean :
